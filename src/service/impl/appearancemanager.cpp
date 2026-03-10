@@ -204,15 +204,27 @@ void AppearanceManager::handleSetScaleFactorStarted()
 
 void AppearanceManager::handleSetScaleFactorDone()
 {
-    QString body = tr("Log out for display scaling settings to take effect");
-    QString summary = tr("Set successfully");
-    QStringList options{ "_logout", tr("Log Out Now"), "_later", tr("Later") };
-    QMap<QString, QVariant> optionMap;
-    optionMap["x-deepin-action-_logout"] = "dbus-send,--type=method_call,--dest=org.deepin.dde.SessionManager1,"
-                                           "/org/deepin/dde/SessionManager1,org.deepin.dde.SessionManager1.RequestLogout";
-    optionMap["x-deepin-action-_later"] = "";
-    int expireTimeout = 0;
-    m_dbusProxy->Notify("dde-control-center", "dialog-window-scale", summary, body, options, optionMap, expireTimeout);
+    // 检测是否为虚拟机环境
+    QProcess process;
+    process.start("systemd-detect-virt", QStringList() << "-v" << "-q");
+    process.waitForFinished();
+    bool isVM = (process.exitCode() == 0);
+
+    // 虚拟机场景下不显示注销通知（如 VMware 窗口调整会触发）
+    if (!isVM) {
+        QString body = tr("Log out for display scaling settings to take effect");
+        QString summary = tr("Set successfully");
+        QStringList options{ "_logout", tr("Log Out Now"), "_later", tr("Later") };
+        QMap<QString, QVariant> optionMap;
+        optionMap["x-deepin-action-_logout"] = "dbus-send,--type=method_call,--dest=org.deepin.dde.SessionManager1,"
+                                            "/org/deepin/dde/SessionManager1,org.deepin.dde.SessionManager1.RequestLogout";
+        optionMap["x-deepin-action-_later"] = "";
+        int expireTimeout = 0;
+        m_dbusProxy->Notify("dde-control-center", "dialog-window-scale", summary, body, options, optionMap, expireTimeout);
+    } else {
+        qInfo() << "Skip logout notification in VM environment";
+    }
+
     // 更新ScaleFactor缓存
     getScaleFactor();
 }
